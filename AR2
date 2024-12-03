@@ -1072,103 +1072,9 @@ local function HookCharacter(Character)
         end
     end
 
-    local OldEquip; OldEquip = hookfunction(Character.Equip, newcclosure(function(Self, Item, ...)
-        if Item.FireConfig and Item.FireConfig.MuzzleVelocity then
-            ProjectileSpeed = Item.FireConfig.MuzzleVelocity * Globals.MuzzleVelocityMod
-        end
-
-        --[[if Window.Flags["AR2/NoSpread"] then
-            if Item.RecoilData then
-                print("SpreadBase", Item.RecoilData.SpreadBase)
-                if Item.AttachmentStatMods then
-                    if Item.AttachmentStatMods.HipSpread then
-                        print("AttachmentStatMods.HipSpread", Item.AttachmentStatMods.HipSpread.Multiplier, Item.AttachmentStatMods.HipSpread.Bonus)
-                    end
-                    if Item.AttachmentStatMods.AimingSpread then
-                        print("AttachmentStatMods.AimingSpread", Item.AttachmentStatMods.AimingSpread.Multiplier, Item.AttachmentStatMods.AimingSpread.Bonus)
-                    end
-                end
-                print("SpreadAddFPSZoom", Item.RecoilData.SpreadAddFPSZoom)
-                print("SpreadAddFPSHip", Item.RecoilData.SpreadAddFPSHip)
-                print("SpreadAddTPSZoom", Item.RecoilData.SpreadAddTPSZoom)
-                print("SpreadAddTPSHip", Item.RecoilData.SpreadAddTPSHip)
-                --Item.RecoilData.SpreadBase = 0.001
-            end
-        end]]
-
-        return OldEquip(Self, Item, ...)
-    end))
+  
     
-    local OldJump; OldJump = hookfunction(Character.Actions.Jump, newcclosure(function(Self, ...)
-        local Args = {...}
-
-        if Window.Flags["AR2/NoJumpDebounce"] then
-            Self.JumpDebounce = 0
-        end
-
-        if Args[1] == "Begin" and Window.Flags["AR2/JumpHeight/Enabled"] then
-            local ReturnArgs = {OldJump(Self, ...)}
-
-            if Self.Humanoid:GetState() == Enum.HumanoidStateType.Freefall
-            and not Window.Flags["AR2/JumpHeight/NoFallCheck"] then return end
-
-            Self.Humanoid.UseJumpPower = false
-            Self.Humanoid.JumpHeight = Window.Flags["AR2/JumpHeight/Height"]
-            Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-
-            return unpack(ReturnArgs)
-        end
-
-        return OldJump(Self, ...)
-    end))
-    --local OldPlayReloadAnimation = Character.Animator.PlayReloadAnimation
-    --print(OldPlayReloadAnimation)
-    --[[for i,v in pairs(Character.Animator) do
-        print(i,v)
-    end]]
-    --[[Character.Animator.PlayReloadAnimation = function(Self, ...)
-        if Window.Flags["AR2/InstantReload"] then
-            local ReturnArgs = {OldPlayReloadAnimation(Self, ...)}
-            local Args = {...}
-
-            for Index = 0, Args[3].LoopCount do
-                Self.ReloadEventCallback("Commit", "Load")
-            end
-            Character.Animator:StopReloadAnimation(false)
-
-            return unpack(ReturnArgs)
-        end
-
-        return OldPlayReloadAnimation(Self, ...)
-    end]]
-    --[[for Index, Spring in pairs({"WobblePos", "WobbleRot", "RotationVelocity", "MoveVelocity"}) do
-        Spring = Character.Animator.Springs[Spring]
-
-        local OldRetune = Spring.Retune
-        Spring.Retune = function(Self, Force, ...)
-            if Window.Flags["AR2/NoWobble"] then Force = 0 end
-            return OldRetune(Self, Force, ...)
-        end
-    end]]
-    local OldToolAction; OldToolAction = hookfunction(Character.Actions.ToolAction, newcclosure(function(Self, ...)
-        if Window.Flags["AR2/UnlockFiremodes"] then
-            if not Self.EquippedItem then return OldToolAction(Self, ...) end
-            local FireModes = Self.EquippedItem.FireModes
-            if not FireModes then return OldToolAction(Self, ...) end
-
-            for Index, Mode in ipairs({"Semiautomatic", "Automatic", "Burst"}) do
-                if not table.find(FireModes, Mode) then
-                    setreadonly(FireModes, false)
-                    table.insert(FireModes, Mode)
-                    setreadonly(FireModes, true)
-                end
-            end
-        end
-
-        return OldToolAction(Self, ...)
-    end))
-end
-
+    
 local OldIndex, OldNamecall = nil, nil
 OldIndex = hookmetamethod(game, "__index", function(Self, Index)
     if Window.Flags["AR2/HeadExpander"] and tostring(Self) == "Head" and Index == "Size" then
@@ -1201,89 +1107,6 @@ OldNamecall = hookmetamethod(game, "__namecall", function(Self, ...)
     return OldNamecall(Self, ...)
 end)
 
--- Store the original Network.Send function
-local OldSend
-OldSend = hookfunction(Network.Send, newcclosure(function(Self, Name, ...)
-    -- Check if the event name is in the SanityBans list and bypass if true
-    if table.find(SanityBans, Name) then
-        print("bypassed", Name)
-        return
-    end
-
-    -- Check for specific event names and conditions to bypass or modify behavior
-    if Name == "Character Jumped" and Window.Flags["AR2/SSCS"] then
-        return
-    end
-
-    if Name == "Vehicle Bumper Impact" and Window.Flags["AR2/Vehicle/Impact"] then
-        return
-    end
-
-    if Name == "Inventory Container Group Disconnect" and Window.Flags["AR2/ContainerPersistence"] then
-        return
-    end
-
-    --[[ Commented out code for "Bullet Fired" event
-    if Name == "Bullet Fired" and Window.Flags["AR2/NoSpread"] then
-        local Args = {...}
-        print(Args[5] == ProjectileDirection)
-        Args[5] = ProjectileSpread -- Adjust ProjectileSpread as needed
-        return OldSend(Self, Name, unpack(Args))
-    end]]
-
-    --[[ Commented out code for "Bullet Impact" event
-    if Name == "Bullet Impact" and Window.Flags["AR2/NoSpread"] then
-        local Args = {...}
-        local Position, Table = CastLocalBulletInstant(ProjectileOrigin, ProjectileDirection2, ProjectileSpread)
-        if not Position then
-            print(Args[1], "miss")
-            return OldSend(Self, Name, ...)
-        end
-
-        -- Adjust Args based on the calculated Position and Table
-        print(Args[1], "hit")
-        Args[6] = Position
-        Args[7][1] = Table[1]
-        Args[7][2] = Table[2]
-        Args[7][3] = Table[3]
-
-        return OldSend(Self, Name, unpack(Args))
-    end]]
-
-    -- Call the original Network.Send function with all arguments
-    return OldSend(Self, Name, ...)
-end))
-
-
-local OldFetch; OldFetch = hookfunction(Network.Fetch, newcclosure(function(Self, Name, ...)
-    if table.find(SanityBans, Name) then print("bypassed", Name) return end
-
-    if Name == "Character State Report" then
-        local RandomData = GetStates()
-        local Args = {...}
-
-        for Index = 1, #Args do
-        --for Index, Value in pairs(Args) do
-            --print(Index, RandomData[Index][1], Value)
-            if Window.Flags["AR2/SSCS"] then
-                if RandomData[Index] == "MoveState" then
-                    Args[Index] = Window.Flags["AR2/MoveState"][1]
-                end
-            end
-            if Window.Flags["AR2/NoSpread"] then
-                if RandomData[Index] == "Zooming" then
-                    Args[Index] = true
-                elseif RandomData[Index] == "FirstPerson" then
-                    Args[Index] = true
-                end
-            end
-        end
-
-        return OldFetch(Self, Name, unpack(Args))
-    end
-
-    return OldFetch(Self, Name, ...)
-end))
 
 setupvalue(Bullets.Fire, 1, function(Character, CCamera, Weapon, ...)
     if Window.Flags["AR2/NoSpread"] then
@@ -1456,43 +1279,7 @@ setupvalue(InteractHeartbeat, 11, function(...)
     return FindItemData(...)
 end)
 
-local OldFire; OldFire = hookfunction(Bullets.Fire, newcclosure(function(Self, ...)
-    if SilentAim and math.random(100) <= Window.Flags["SilentAim/HitChance"] then
-        local Args = {...}
-        local BodyPart = SilentAim[3]
-        local BodyPartPosition = BodyPart.Position
-        local Direction = BodyPartPosition - Args[4]
 
-        if Window.Flags["AR2/MagicBullet/Enabled"] then
-            local Distance = math.clamp(Direction.Magnitude, 0, Window.Flags["AR2/MagicBullet/Depth"])
-            Args[4] = Args[4] + (Direction.Unit * Distance)
-        end
-
-        BodyPartPosition = Window.Flags["AR2/InstantHit"] and BodyPartPosition
-        or SolveTrajectory(BodyPartPosition, BodyPart.AssemblyLinearVelocity,
-        Direction.Magnitude / ProjectileSpeed, ProjectileGravity)
-
-        --[[local BodyPartPosition2 = Window.Flags["AR2/InstantHit"] and BodyPartPosition
-        or SolveTrajectory2(BodyPartPosition, BodyPart.AssemblyLinearVelocity,
-        Direction.Magnitude / ProjectileSpeed, ProjectileGravity)]]
-
-        --local BodyPartPosition = Window.Flags["AR2/InstantHit"] and SilentAim[3].Position
-        --or Parvus.Utilities.Physics.SolveTrajectory(Args[4], SilentAim[3].Position,
-        --SilentAim[3].AssemblyLinearVelocity, ProjectileSpeed, ProjectileGravity, 1)
-
-        ProjectileDirection = (BodyPartPosition - Args[4]).Unit
-        --ProjectileDirection2 = (BodyPartPosition2 - Args[4]).Unit
-        Args[5] = ProjectileDirection --(BodyPartPosition - Args[4]).Unit
-
-        return OldFire(Self, unpack(Args))
-    end
-
-    local Args = {...}
-    ProjectileDirection = Args[5]
-    --ProjectileDirection2 = Args[5]
-
-    return OldFire(Self, ...)
-end))
 
 -- Old Recoil Control
 --[[local OldPost = Animators.Post
@@ -1505,28 +1292,7 @@ Animators.Post = function(Self, Name, ...) local Args = {...}
         Args[1][5] = Args[1][5] * (Window.Flags["AR2/Recoil/KickUpForce"] / 100)
     end return OldPost(Self, Name, unpack(Args))
 end]]
-local OldFlinch; OldFlinch = hookfunction(CharacterCamera.Flinch, newcclosure(function(Self, ...)
-    if Window.Flags["AR2/NoFlinch"] then return end
-    return OldFlinch(Self, ...)
-end))
-local OldCharacterGroundCast; OldCharacterGroundCast = hookfunction(Raycasting.CharacterGroundCast, newcclosure(function(Self, Position, LengthDown, ...)
-    if PlayerClass.Character and Position == PlayerClass.Character.RootPart.CFrame then
-        if Window.Flags["AR2/UseInAir"] then
-            return GroundPart, CFrame.new(), Vector3.new(0, 1, 0)
-            --LengthDown = 1022
-        end
-    end
-    return OldCharacterGroundCast(Self, Position, LengthDown, ...)
-end))
---[[local OldSwimCheckCast = Raycasting.SwimCheckCast
-Raycasting.SwimCheckCast = function(Self, ...)
-    if Window.Flags["AR2/UseInWater"] then return nil end
-    return OldSwimCheckCast(Self, ...)
-end]]
-local OldPlayAnimation; OldPlayAnimation = hookfunction(Animators.PlayAnimation, newcclosure(function(Self, Path, ...)
-    if Path == "Actions.Fall Impact" and Window.Flags["AR2/NoFallImpact"] then return end
-    return OldPlayAnimation(Self, Path, ...)
-end))
+
 -- Old Vehicle Mod
 --[[local OldVC = VehicleController.new
 VehicleController.new = function(...)
@@ -1552,58 +1318,6 @@ VehicleController.new = function(...)
     return unpack(ReturnArgs)
 end]]
 
-local OldCD; OldCD = hookfunction(Events["Character Dead"], newcclosure(function(...)
-    if Window.Flags["AR2/FastRespawn"] then
-        task.spawn(function() SetIdentity(2)
-            PlayerClass:UnloadCharacter()
-            Interface:Hide("Reticle")
-            task.wait(0.5)
-            PlayerClass:LoadCharacter()
-        end)
-    end
-
-    return OldCD(...)
-end))
-local OldLSU; OldLSU = hookfunction(Events["Lighting State Update"], newcclosure(function(Data, ...)
-    LightingState = Data
-    OldBaseTime = LightingState.BaseTime
-    --print("Lighting State Updated")
-    return OldLSU(Data, ...)
-end))
-local OldSquadUpdate; OldSquadUpdate = hookfunction(Events["Squad Update"], newcclosure(function(Data, ...)
-    SquadData = Data
-    --print(repr(SquadData))
-    --print("Squad Updated")
-    return OldSquadUpdate(Data, ...)
-end))
-local OldICA; OldICA = hookfunction(Events["Inventory Container Added"], newcclosure(function(Id, Data, ...)
-    if not Window.Flags["AR2/ESP/Items/Containers/Enabled"] then return OldICA(Id, Data, ...) end
-
-    --print(Data.Type)
-
-    if Data.Type ~= "Corpse" or Data.Type ~= "Vehicle" then
-        if Data.WorldPosition and Length(Data.Occupants) > 0 then
-            AddObject:Fire(Data.Id, CIIC(Data), Data.WorldPosition,
-            "AR2/ESP/Items", "AR2/ESP/Items/Containers", Window.Flags)
-        end
-    end
-
-    return OldICA(Id, Data, ...)
-end))
-local OldCC; OldCC = hookfunction(Events["Container Changed"], newcclosure(function(Data, ...)
-    if not Window.Flags["AR2/ESP/Items/Containers/Enabled"] then return OldCC(Data, ...) end
-
-    RemoveObject:Fire(Data.Id)
-
-    if Data.Type ~= "Corpse" or Data.Type ~= "Vehicle" then
-        if Data.WorldPosition and Length(Data.Occupants) > 0 then
-            AddObject:Fire(Data.Id, CIIC(Data), Data.WorldPosition,
-            "AR2/ESP/Items", "AR2/ESP/Items/Containers", Window.Flags)
-        end
-    end
-
-    return OldCC(Data, ...)
-end))
 
 if PlayerClass.Character then
     HookCharacter(PlayerClass.Character)
